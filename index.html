@@ -77,6 +77,10 @@
         .bet-btn:active {
             transform: translateY(0);
         }
+        .bet-btn:disabled {
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
         #bet-down { background-color: #fdd835; color: #333; } /* Yellow */
         #bet-seven { background-color: #e53935; color: #fff; } /* Red */
         #bet-up { background-color: #43a047; color: #fff; } /* Green */
@@ -121,6 +125,28 @@
             background-color: #e1f5fe; /* Light blue */
             color: #0277bd;
         }
+
+        /* --- ADD THIS FOR ANIMATION --- */
+        @keyframes shake {
+            0% { transform: translate(1px, 1px) rotate(0deg); }
+            10% { transform: translate(-1px, -2px) rotate(-1deg); }
+            20% { transform: translate(-3px, 0px) rotate(1deg); }
+            30% { transform: translate(3px, 2px) rotate(0deg); }
+            40% { transform: translate(1px, -1px) rotate(1deg); }
+            50% { transform: translate(-1px, 2px) rotate(-1deg); }
+            60% { transform: translate(-3px, 1px) rotate(0deg); }
+            70% { transform: translate(3px, 1px) rotate(-1deg); }
+            80% { transform: translate(-1px, -1px) rotate(1deg); }
+            90% { transform: translate(1px, 2px) rotate(0deg); }
+            100% { transform: translate(1px, -2px) rotate(-1deg); }
+        }
+
+        .shaking {
+            animation: shake 0.5s;
+            animation-iteration-count: infinite;
+        }
+        /* --- END OF ANIMATION CODE --- */
+
     </style>
 </head>
 <body>
@@ -209,8 +235,6 @@
                 if (betType === actualOutcome) {
                     win = true;
                     // You get your wager doubled (your original wager + 1x winnings)
-                    // Note: Some games give 3x or 5x for 'seven'. We are keeping
-                    // it simple as per your request: "wagered points doubled".
                     payout = wager * 2;
                     this.points += payout;
                 }
@@ -268,31 +292,68 @@
                 // Get the wager amount from the input field
                 const wager = parseInt(wagerInput.value);
 
-                // Play a round
+                // --- START: MODIFIED ANIMATION LOGIC ---
+
+                // 1. Run the game logic *first* to get the real result
                 const result = game.play(betType, wager);
 
-                // Check if the game logic returned an error
+                // 2. Check for errors (like 'not enough points') *before* animating
                 if (result.error) {
                     messageDisplay.textContent = result.error;
                     messageDisplay.className = 'result-message lose';
-                    return; // Stop here
+                    return; // Stop here, don't animate
                 }
 
-                // No error, so update the UI with the results
-                die1Display.textContent = result.die1;
-                die2Display.textContent = result.die2;
+                // 3. Disable buttons and set 'Rolling...' message
+                betButtons.forEach(button => button.disabled = true);
+                messageDisplay.textContent = "Rolling...";
+                messageDisplay.className = 'result-message info';
 
-                // Update the message and its style (win/lose)
-                if (result.win) {
-                    messageDisplay.textContent = `You WIN! Rolled ${result.sum}. You get ${result.payout} points back.`;
-                    messageDisplay.className = 'result-message win';
-                } else {
-                    messageDisplay.textContent = `You Lose. Rolled ${result.sum} (${result.actualOutcome}). You lost ${result.wager} points.`;
-                    messageDisplay.className = 'result-message lose';
-                }
+                // 4. Start the CSS shake animation
+                die1Display.classList.add('shaking');
+                die2Display.classList.add('shaking');
 
-                // Update the wallet display
-                updateUI();
+                // 5. Start the 'flicker' animation
+                const flickerInterval = setInterval(() => {
+                    // Show random numbers 
+                    die1Display.textContent = Math.floor(Math.random() * 6) + 1;
+                    die2Display.textContent = Math.floor(Math.random() * 6) + 1;
+                }, 80); // Change numbers every 80ms
+
+                // 6. Set a timeout to STOP the animation after 1 second
+                setTimeout(() => {
+                    // Stop the flicker
+                    clearInterval(flickerInterval);
+
+                    // Stop the CSS shake
+                    die1Display.classList.remove('shaking');
+                    die2Display.classList.remove('shaking');
+
+                    // 7. Show the *actual* results
+                    die1Display.textContent = result.die1;
+                    die2Display.textContent = result.die2;
+
+                    // 8. Show the win/lose message
+                    if (result.win) {
+                        messageDisplay.textContent = `You WIN! Rolled ${result.sum}. You get ${result.payout} points back.`;
+                        messageDisplay.className = 'result-message win';
+                    } else {
+                        messageDisplay.textContent = `You Lose. Rolled ${result.sum} (${result.actualOutcome}). You lost ${result.wager} points.`;
+                        messageDisplay.className = 'result-message lose';
+                    }
+
+                    // 9. Update the wallet points
+                    updateUI();
+
+                    // 10. Re-enable buttons *only if* the game isn't over
+                    // (updateUI will handle disabling them if points are 0)
+                    if (game.points > 0) {
+                        betButtons.forEach(button => button.disabled = false);
+                    }
+
+                }, 1000); // 1000ms = 1 second roll time
+                
+                // --- END: MODIFIED ANIMATION LOGIC ---
             }
 
             // Attach the 'handleBet' function to each button's click event
